@@ -1,0 +1,15 @@
+namespace: MarketDemandHistory
+operation:
+  name: RetailerEmail
+  inputs:
+    - accesstoken
+    - emailTextFile
+  python_action:
+    use_jython: false
+    script: "def execute(accesstoken, emailTextFile):\n    import requests\n    import base64\n    import os\n    \n    results = \"\"\n    emailsSent = 0\n    \n    if os.path.exists(emailTextFile):\n\n        textFile = open(emailTextFile, 'r')\n        emails = textFile.readlines()\n        \n        for email in emails:\n            nmi, retailer, frmp, retailerEmail, attachment, caseID = email.split(\"|\")\n            \n            attach, attachmentName = attachment.split(\"Market Demand History/\")\n            \n            data = open(attachment, 'rb').read()\n            body = \"\"\n            base64_encoded = base64.b64encode(data).decode('UTF-8')\n            body = \"Hi \"+retailer+\",\\n\\nFollowing the transfer of NMI \"+nmi+\" to your participant ID \"+frmp+\", please find attached the measured demand history for this site.\\n\\nKind Regards\\n\\nBilling & Credit\\nSA Power Networks\\n\\nSAPN Case ID: \"+caseID\n            url = \"https://graph.microsoft.com/v1.0/users/billing@sapowernetworks.com.au/sendMail\"\n            payload = \"{\\r\\n    \\\"message\\\": {\\r\\n        \\\"subject\\\": \\\"SA Power Networks - Demand History\\\",\\r\\n        \\\"body\\\": {\\r\\n            \\\"contentType\\\": \\\"Text\\\",\\r\\n            \\\"content\\\": \\\"\"+body+\"\\\"\\r\\n        },\\r\\n        \\\"toRecipients\\\": [\\r\\n            {\\r\\n                \\\"emailAddress\\\": {\\r\\n                    \\\"address\\\": \\\"\"+retailerEmail+\"\\\"\\r\\n                }\\r\\n            }\\r\\n        ],\\r\\n        \\\"ccRecipients\\\": [\\r\\n            {\\r\\n                \\\"emailAddress\\\": {\\r\\n                    \\\"address\\\": \\\"billing@sapowernetworks.com.au\\\"\\r\\n                }\\r\\n            }\\r\\n        ],\\r\\n        \\\"attachments\\\": [\\r\\n            {\\r\\n                \\\"@odata.type\\\": \\\"#microsoft.graph.fileAttachment\\\",\\r\\n                \\\"name\\\": \\\"\"+attachmentName+\"\\\",\\r\\n                \\\"contentType\\\":\\\"\\\",\\r\\n                \\\"contentBytes\\\": \\\"\"+base64_encoded+\"\\\"\\r\\n            }\\r\\n        ]\\r\\n    },\\r\\n    \\\"saveToSentItems\\\": \\\"true\\\"\\r\\n}\"\n            headers = {\n            'Content-Type': 'application/json',\n            'SdkVersion': 'postman-graph/v1.0',\n            'Authorization': 'Bearer '+accesstoken\n            }\n            \n            response = requests.request(\"POST\", url, headers=headers, data = payload)\n            \n            if not (response.status_code >= 200 and response.status_code < 300):\n                results = results + attachmentName + \" \" + response.reason + \", \"\n            else:\n                os.remove(attachment)\n                emailsSent = emailsSent + 1\n        \n    return{\"results\":results,\"emailsSent\":emailsSent}"
+  outputs:
+    - results
+    - emailsSent
+  results:
+    - WARNING: '${results != ""}'
+    - SUCCESS
